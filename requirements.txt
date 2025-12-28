@@ -12,4 +12,5 @@ pandas
 scikit-learn
 tqdm 
 matplotlib
-
+lightning
+numpy==1.26.4
