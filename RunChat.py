@@ -2,47 +2,10 @@ import gradio as gr
 from LLM import API_helper, _content_to_str
 from helper import load_world, save_world, load_env, get_ollama_api_key
 
-############################################## Create Chat UI ##############################################
-demo = None
-
-def start_chat(main_loop, share=False):
-    # added code to support restart
-    global demo
-    # If demo is already running, close it first
-    if demo is not None:
-        demo.close()
-
-    region_names = list(world["regions"].keys())
-
-    demo = gr.ChatInterface(
-        fn=main_loop,
-        chatbot=gr.Chatbot(height=250, placeholder="Type 'Hello Geralt' to begin"),
-        textbox=gr.Textbox(placeholder="What do you say next?", container=False, scale=7),
-        title="Chat with Geralt of Rivia",
-        # description="Ask Yes Man any question",
-        examples=["How are you?", "Where are you?"],
-        cache_examples=False,
-        additional_inputs=[gr.Dropdown(choices=region_names, value="White Orchard", label="Start Region")],
-                           )
-    demo.launch(share=share, theme=gr.themes.Monochrome())
-
-def test_main_loop(message, history):
-    return 'Entered Action: ' + message
-
-############################################## Initial Start ##############################################
-#####
-# ADD NEW FUNCTION THAT ALLOWS USER TO SELECT STARTING REGION
-# PUT THE CODE BELOW UP TO "run_interaction()" INTO THIS NEW FUNCTION
-#####
-
-
-# Load the world/region/character information from the JSON file
-world = load_world('/mnt/c/Users/Saffron/Documents/Ontario Tech Class Notes/Thesis/AI_Powered_Game/TheContinent.json')
-region = world['regions']['White Orchard']  # Change region to change start point
-character = region['MainCharacter']['Geralt of Rivia']
+############################################## System Prompts ##############################################
 
 # Give the LLM instructions on how the act and respond when chatting with a user for the first time
-system_prompt = """ 
+system_prompt_initial = """ 
 You are an AI chatbot meant to imitate the character "Geralt of Rivia" from the video game "The Witcher 3: Wild Hunt." \
 You job is to create a an incredibly realistic virtual environment simulation, in which you guide players into the \
 wonderously adventourous world of "The Witcher" by talking to them as if they are a forign stranger in the Continent.
@@ -78,65 +41,128 @@ Instructions:
 - If Geralt is currently in the region, "Kaer Morhen", then you should only "know" and reference events that are \
     known to Geralt up to and including the quest titled "Something Ends, Something Begins".
 """
-# Load the world info
-world_info = f"""
-World: {world}
-Region: {region}
-Character: {character}
+
+# Define what happens when AI responds to user interactions
+system_prompt_chat = """
+Your job is to imitate the character "Geralt of Rivia" from the video game "The Witcher 3: Wild Hunt." \
+
+Instructions:
+- You must use only 1-3 sentences. 
+- Write in first person.  
+- Do not make any references that Geralt would not know. 
+- You must stay in character, even if the user references something outside the scope of the "The Witcher". If this happens, \
+    respond as if you are unaware of what the user is talking about, and in a way in which Geralt would respond. \
+- Your knowledge should only include game knowledge, quests, and events that are known and accessible to Geralt up to a \
+    certain point in the game. This cutoff point will be the region that in which the chat starts. This excludes lore and characters \
+    that are in The Witcher book series, as "The Witcher 3: Wild Hunt" takes place a few years after the books.
+- You are aware of lore and characters that are in The Witcher book series, as "The Witcher 3: Wild Hunt" takes place a \
+    few years after the books. This includes the characters of Yennefer and Ciri.
+- If Geralt is currently in the region, "White Orchard", then you should only "know" and reference events that are \
+    known to Geralt up to and including the quest titled "The Incident at White Orchard".
+
+- If Geralt is currently in the region, "Royal Palace in Vizima", then you should only "know" and reference events that are \
+    known to Geralt up to and including the quest titled "Imperial Audience".
+
+- If Geralt is currently in the region, "Velen", then you should only "know" and reference events that are \
+    known to Geralt up to and including the quest titled "Ciri's Story: Fleeing the Bog".
+
+- If Geralt is currently in the region, "Novigrad", then you should only "know" and reference events that are \
+    known to Geralt up to and including the quest titled "Ciri's Story: Breakneck Speed".
+
+- If Geralt is currently in the region, "The Skellige Isles", then you should only "know" and reference events that are \
+    known to Geralt up to and including the quest titled "A Mysterious Passenger".
+
+- If Geralt is currently in the region, "Kaer Morhen", then you should only "know" and reference events that are \
+    known to Geralt up to and including the quest titled "Something Ends, Something Begins".
 """
-# Generate the starting output when the user first starts the chat
-model_messages=[
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": world_info + '\nYour Start:'}
-    ]
+############################################## Load World ##############################################
 
-start = API_helper(model_messages)
-print(start)
+# World file and save file paths
+world_path = '/mnt/c/Users/Saffron/Documents/Ontario Tech Class Notes/Thesis/AI_Powered_Game/TheContinent.json'
+save_path = '/mnt/c/Users/Saffron/Documents/Ontario Tech Class Notes/Thesis/AI_Powered_Game/YourWorld.json'
 
-# Save the starting point of the chat in the JSON file - Currently starting in White Orchard
-world['start'] = start
-save_world(world, '/mnt/c/Users/Saffron/Documents/Ontario Tech Class Notes/Thesis/AI_Powered_Game/YourWorld.json')
+# Load the world/region/character information from the JSON file
+world = load_world(world_path)
+region_names = list(world["regions"].keys())
+
+# Chat state
+chat_state = {
+    "world": world.get("description", ""),
+    "region": "",
+    "character": "",
+    "start": "",
+    "region_name": "",
+    "initialized": False,
+}
+
+# Initialize starting region and game state
+def initialize_chat(region_name: str):
+    region = world["regions"][region_name]
+    character = region["Main Character"]["Geralt of Rivia"]
+
+    chat_state["region_name"] = region_name
+    chat_state["region"] = region.get("description", "")
+    chat_state['character'] = character.get("description", "")
+
+    # Load the world info
+    world_info_initial = f"""
+    World: {world}
+    Region: {region}
+    Character: {character}
+    """
+    # Generate the starting output when the user first starts the chat
+    model_messages=[
+            {"role": "system", "content": system_prompt_initial},
+            {"role": "user", "content": world_info_initial + '\nYour Start:'}
+        ]
+
+    # Starting message to initialize the chat
+    chat_state["start"] = API_helper(model_messages)
+    chat_state["initialized"] = True
+
+    # Save the starting message to your world's JSON file
+    world["start"] = chat_state["start"]
+    save_world(world, save_path)
+    
+
+############################################## Create Chat UI ##############################################
+
+demo = None
+
+def start_chat(main_loop, share=False):
+    # added code to support restart
+    global demo
+    # If demo is already running, close it first
+    if demo is not None:
+        demo.close()
+
+    demo = gr.ChatInterface(
+        fn=main_loop,
+        chatbot=gr.Chatbot(height=250, placeholder="Type 'Hello Geralt' to begin"),
+        textbox=gr.Textbox(placeholder="What do you say next?", container=False, scale=7),
+        title="Chat with Geralt of Rivia",
+        # description="Ask Yes Man any question",
+        examples=[
+            ["Hello Geralt", "White Orchard"],
+            ["Hello Geralt", "Velen"]],
+        cache_examples=False,
+        additional_inputs=[gr.Dropdown(choices=region_names, value="White Orchard", label="Start Region")],
+                           )
+    demo.launch(share=share, theme=gr.themes.Monochrome())
+
+def test_main_loop(message, history):
+    return 'Entered Action: ' + message
 
 ############################################## User Interactions ##############################################
 
 # Define what happens when the user starts the chat for thr first time
 def run_interaction(message, history, chat_state, region_name):
-    if(message == "Hello Geralt"):
+    message_str = _content_to_str(message).strip()
+    
+    if(message_str == "Hello Geralt"):
         return chat_state['start']
 
-    # Define what happens when AI responds to user interactions
-    system_prompt = """
-    Your job is to imitate the character "Geralt of Rivia" from the video game "The Witcher 3: Wild Hunt." \
 
-    Instructions:
-    - You must use only 1-3 sentences. 
-    - Write in first person.  
-    - Do not make any references that Geralt would not know. 
-    - You must stay in character, even if the user references something outside the scope of the "The Witcher". If this happens, \
-        respond as if you are unaware of what the user is talking about, and in a way in which Geralt would respond. \
-    - Your knowledge should only include game knowledge, quests, and events that are known and accessible to Geralt up to a \
-        certain point in the game. This cutoff point will be the region that in which the chat starts. This excludes lore and characters \
-        that are in The Witcher book series, as "The Witcher 3: Wild Hunt" takes place a few years after the books.
-    - You are aware of lore and characters that are in The Witcher book series, as "The Witcher 3: Wild Hunt" takes place a \
-        few years after the books. This includes the characters of Yennefer and Ciri.
-    - If Geralt is currently in the region, "White Orchard", then you should only "know" and reference events that are \
-        known to Geralt up to and including the quest titled "The Incident at White Orchard".
-
-    - If Geralt is currently in the region, "Royal Palace in Vizima", then you should only "know" and reference events that are \
-        known to Geralt up to and including the quest titled "Imperial Audience".
-
-    - If Geralt is currently in the region, "Velen", then you should only "know" and reference events that are \
-        known to Geralt up to and including the quest titled "Ciri's Story: Fleeing the Bog".
-
-    - If Geralt is currently in the region, "Novigrad", then you should only "know" and reference events that are \
-        known to Geralt up to and including the quest titled "Ciri's Story: Breakneck Speed".
-
-    - If Geralt is currently in the region, "The Skellige Isles", then you should only "know" and reference events that are \
-        known to Geralt up to and including the quest titled "A Mysterious Passenger".
-
-    - If Geralt is currently in the region, "Kaer Morhen", then you should only "know" and reference events that are \
-        known to Geralt up to and including the quest titled "Something Ends, Something Begins".
-    """
     # Provide world info
     world_info = f"""
     World: {chat_state['world']}
@@ -163,18 +189,10 @@ def run_interaction(message, history, chat_state, region_name):
                     if a is not None:
                         messages.append({"role": "assistant", "content": _content_to_str(a)})
 
-    messages.append({"role": "user", "content": _content_to_str(message)})
+    messages.append({"role": "user", "content": message_str})
 
     return API_helper(messages)
 
-# Define the game state based on the world we've created
-chat_state = {
-    "world": world['description'],
-    "region": region['description'],
-    "character": character['description'],
-    "start": start,
-    "initialized": False,
-}
 
 def main_loop(message, history, region_name):
      return run_interaction(message, history, chat_state, region_name)

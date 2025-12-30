@@ -14,3 +14,4 @@ tqdm
 matplotlib
 lightning
 numpy==1.26.4
+huggingface_hub==0.20.3

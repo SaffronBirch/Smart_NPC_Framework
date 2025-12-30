@@ -147,14 +147,14 @@ def create_main_character(region):
     }
     main_character[char_name] = character
   
-  region['MainCharacter'] = main_character
+  region['Main Character'] = main_character
 
 
 for region in regions.values():    # Create Geralt's profile for White Orchard
   create_main_character(region)
   break
 
-character = list(region['MainCharacter'].values())[0]
+character = list(region['Main Character'].values())[0]
 
 print(f'\nGeralt in {region["name"]}:\n{character["description"]}')
 
