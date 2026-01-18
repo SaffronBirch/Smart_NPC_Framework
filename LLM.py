@@ -20,7 +20,6 @@ def _content_to_str(content):
 def normalize_for_ollama(messages):
     norm = []
     for m in messages:
-        # If history is tuples, you'll handle that earlier — this assumes dict messages here
         role = m.get("role", "user")
         content = _content_to_str(m.get("content", ""))
         norm.append({"role": role, "content": content})
