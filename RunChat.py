@@ -1,6 +1,7 @@
 import gradio as gr
 from LLM import API_helper, _content_to_str
 from helper import load_world, save_world, load_env, get_ollama_api_key
+from pathlib import Path
 
 ############################################## System Prompts ##############################################
 
@@ -73,11 +74,18 @@ Instructions:
 ############################################## Load World ##############################################
 
 # World file and save file paths
-world_path = '/mnt/c/Users/Saffron/Documents/Ontario Tech Class Notes/Thesis/AI_Powered_Game/TheContinent.json'
-save_path = '/mnt/c/Users/Saffron/Documents/Ontario Tech Class Notes/Thesis/AI_Powered_Game/YourWorld.json'
+base_path = Path(__file__).parent 
+world_path = base_path / "TheContinent.json"
+save_path = base_path / "Yourworld.json"
 
 # Load the world/region/character information from the JSON file
 world = load_world(world_path)
+
+# Initialize chat logs to JSON. This will save the conversation history between the user and the chatbot
+if "chat_logs" not in world:
+    world["chat_logs"] = {}
+
+
 region_names = list(world["regions"].keys())
 
 # Chat state
