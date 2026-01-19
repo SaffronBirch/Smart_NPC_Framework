@@ -10,11 +10,13 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import f1_score, classification_report
 import torchtext.data
 from torchtext.vocab import build_vocab_from_iterator
+from pathlib import Path
 
 # =========================
 # Config
 # =========================
-path = '/mnt/c/Users/Saffron/Documents/Ontario Tech Class Notes/Thesis/AI_Powered_Game/Datasets/emotions.csv'
+base_path = Path(__file__).parent 
+path = base_path / "Datasets/emotions.csv"
 
 TEXT_COLUMN = "text"
 LABEL_COLUMN = "label"
