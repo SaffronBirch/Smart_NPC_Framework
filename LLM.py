@@ -1,5 +1,6 @@
 from ollama import Client
-from helper import get_ollama_api_key, load_env  
+from helper import get_ollama_api_key, load_env 
+
 
 def _content_to_str(content):
     if isinstance(content, str):

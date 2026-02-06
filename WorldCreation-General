@@ -1,0 +1,210 @@
+from LLM import API_helper
+from helper import save_world
+from pathlib import Path
+import json, re
+
+############################################## Prompts #####################################
+
+#Create the System Prompt
+def create_system_prompt():
+    return f"""
+    Your job is to help create an immersive fantasy world based on a video game.
+
+    Instructions:
+    - Return ONLY valid JSON (no markdown, no extra text).
+    - Only generate plain JSON.
+    - Do not include explanations or commentary.
+    - Use simple clear language.
+    - You must stay below 3-5 sentences for each description.
+    """
+
+#Create the World Prompt
+def create_world_prompt(game_name):
+    return f"""
+        Generate a description of the world that is explored in {game_name}. 
+
+        Return ONLY valid JSON.
+
+        Schema:
+        {{
+        "name": "World Name", 
+        "description": "World Description"
+        }}
+
+        """
+
+#Create the Region Prompt
+def create_region_prompt(game_name):
+    return f"""
+    Generate a description for each of the major regions in {game_name}. 
+    For each regions's description, detail all of the different aspects of the region and all 
+    of the people who reside there.
+
+    Return ONLY valid JSON.
+
+    Schema:
+    {{
+    "regions": 
+    [
+        {"name": "Region Name", 
+         "description": "Region Description"}, ...
+    ]
+    }}
+        """
+
+#Create Characters
+def create_character_prompts(game_name, region_name):
+  return f""" 
+  For  each of the characters in {game_name} that reside in {region_name}, generate a description of the character
+  describing their appearance, profession, and purpose for being in that particualr region.
+
+  For  each of the characters in {game_name} that reside in {region_name}, generate the character's backstory.
+
+  Return ONLY valid JSON.
+
+  Schema:
+  {{
+    "characters": 
+    [
+      {
+        "name":"Character Name", 
+        "description": "Character Description", 
+        "backstory": "Character Backstory"}, ...
+    ]
+  }}
+  """
+
+############################################## Content Generation ##############################################
+
+class WorldGenerator:
+    
+    def __init__(self, game_name):
+       self.game_name = game_name
+       self.system_prompt = create_system_prompt()
+       self.world = None
+      
+    def generate_world(self):
+       print(f"generating world for {self.game_name}...")
+       
+       world_messages = [
+           {"role": "system", "content": self.system_prompt},
+           {"role": "user", "content": create_world_prompt(self.game_name)}]
+           
+       world_output = API_helper(world_messages)
+       world_data = json.loads(world_output)
+
+       self.world = {
+          "name": world_data["name"].strip(),
+          "description": world_data["description"].strip(),
+          "regions": {}
+       }
+
+       print(f"Created world: {self.world['name']}")
+       return self.world
+    
+    def generate_regions(self):
+        if self.world is None:
+            raise ValueError("World must be generated first. Call generate_world() first.")
+        
+        print(f"Generating regions for {self.game_name}...")
+
+        region_messages = [
+            {"role": "system", "content": self.system_prompt},
+            {"role": "user", "content": create_region_prompt(self.game_name)}
+        ]
+        regions_output = API_helper(region_messages)
+        region_data = json.loads(regions_output)
+        
+        for r in region_data['regions']:
+            region_name = r["name"].strip()
+            region_description = r["description"].strip()
+
+            self.world['regions'][region_name] = {
+                "name": region_name,
+                "description": region_description,
+                "characters": {}
+            }
+            print(f"created region {region_name}")
+        
+        return self.world['regions']
+    
+    def generate_characters(self, region_name):
+        if region_name not  in self.world['regions']:
+            raise ValueError("Regions must be generated first. Call generate_regions() first.")
+        
+        print(f"Generating characters for {region_name}...")
+
+        region = self.world['regions'][region_name]
+
+        character_messages = [
+            {"role": "system", "content": self.system_prompt},
+            {"role": "user", "content": create_character_prompts(self.game_name, region_name)}
+        ]
+
+        character_output = API_helper(character_messages)
+        character_data = json.loads(character_output)
+
+        for c in character_data['characters']:
+            character_name = c["name"].strip()
+            character_description = c["description"].strip()
+            character_backstory = c['backstory'].strip()
+            
+            region["characters"][character_name] = {
+                "name": character_name,
+                "description": character_description,
+                "backstory": character_backstory
+            }
+            print(f"created region {region_name}")
+
+        return region['characters']
+
+############################################## Save to JSON ##############################################
+ 
+    def save_to_file(self):
+        if self.world is None:
+            print("No world has been generated.")
+
+        filename = f"{self.world['name'].replace(' ', '')}.json" 
+
+        base_path = Path(__file__).parent
+        save_path = base_path/filename
+
+        save_world(self.world, save_path)
+
+############################################## User Input and World Generation ##############################################
+
+print("=== Smart NPC Generator ===")
+
+game_name = input("Please enter the name of a game:")
+
+generator = WorldGenerator(game_name)
+world = generator.generate_world()
+regions = generator.generate_regions()
+
+print(list(regions))
+
+region_name = input("Please enter the starting region: ")
+
+characters = generator.generate_characters(region_name)
+
+print(f"NPCs in {region_name}: ")
+
+
+
+
+
+        
+
+
+
+
+
+
+
+
+
+
+
+
+
+
