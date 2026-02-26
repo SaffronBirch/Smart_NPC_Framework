@@ -6,7 +6,7 @@ model_limits = {
     "gpt-oss:120b-cloud": 120000
 }
 # Reserve tokens for system prompt, user prompt, and resonse, as well as approximate character count per token.
-reserved_tokens = 4000
+reserved_tokens = 8000
 char_count = 4
 
 # Provides an estimate of the token count for a given piece of text
@@ -51,9 +51,9 @@ def API_helper(messages):
     resp = client.chat(
         model="gpt-oss:120b-cloud",
         messages=messages,
-        options={
-            "num_predict": 4096
-        }
+        # options={
+        #     "num_predict": 4096
+        # }
     )
     output = resp["message"]["content"]
     return output

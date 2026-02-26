@@ -206,7 +206,7 @@ def run_interaction(message, history, chat_state, region_name):
         initialize_chat(region_name)
     
     # Start chat, and save starting message to chat logs
-    if(message_str == "Hello Geralt"):
+    if(message_str == "Hello"):
         reply = chat_state['start']
     
         save_chat(

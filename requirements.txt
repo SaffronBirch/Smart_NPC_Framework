@@ -23,3 +23,6 @@ torch
 detoxify
 guardrails-ai>=0.4.0
 
+# Hugging Face Sentence Transformers
+sentence-transformers
+
