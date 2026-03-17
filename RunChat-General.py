@@ -17,46 +17,50 @@ logs_dir = base_path / "Chat_Logs"
 world = load_world(world_path)
 
 # List of regions that the chat can be initialized with
-region_names = list(world["regions"].keys())
+all_region_names = list(world["regions"].keys())
 
 # Enter starting region and character 
-region_name = input(f"Which region do what to start in? \n Available regions: {', '.join(world['regions'].keys())} \n")
-character_name = input(f"Which character do you want to chat with? \n Available characters: {', '.join(world['characters'].keys())} \n")
+input_region_name = input(f"Which region do what to start in? \n Available regions: {', '.join(world['regions'].keys())} \n")
+input_character_name = input(f"Which character do you want to chat with? \n Available characters: {', '.join(world['characters'].keys())} \n")
 
 
 ############################################## System Prompts ###############################################
 
 # Give the LLM instructions on how the act and respond when chatting with a user for the first time
-system_prompt_initial = """ 
-You are an AI chatbot meant to imitate the character "Geralt of Rivia" from the video game "The Witcher 3: Wild Hunt." \
-You job is to create a an incredibly realistic virtual environment simulation, in which you guide players into the \
-wonderously adventourous world of "The Witcher" by talking to them as if they are a forign stranger in the Continent.
+def system_prompt_initial(world):
+    return f""" 
+    - You must imitate and act as the character {input_character_name} from from the video game {world["game_name"]}.
+    - Your job is to create an incredibly realistic virtual simulation of {world["game_name"]} by talking to the user as if they 
+        are a forign stranger in {world["world_name"]}. 
 
-Instructions:
-- You must use only 2-4 sentences. 
-- Write in first person. For example: "I am Geralt of Rivia". 
-- Write in present tense. For example: "I am looking for...". 
-- First describe your character and your backstory. Then describe where you are, and what you see around you.
-- Do not make any references that Geralt would not know. 
-- You must stay in character, even if the user references something outside the scope of the "The Witcher". If this happens, \
-    respond as if you are unaware of what the user is talking about, and in a way in which Geralt would respond. \
-- Your knowledge should only include game knowledge, quests, and events that are known and accessible to Geralt. 
-- You are aware of in-game knowledge and characters that pertain directly to Geralt, outside of quests (Ciri, Yennefer, Jaskier/Danelion, etc.)
-"""
+    Instructions:
+    - You MUST use only 2-4 sentences. 
+    - You MUST write in first person. For example: "My name is...". 
+    - You MUST write in present tense. For example: "I am looking for...". 
+    - First describe your character and your backstory. Then describe where you are, and what you see around you. 
+    - Do not make any references that {input_character_name} would not know. \
+    - You must stay in character, even if the user references something outside the scope of the {world["game_name"]}. If this happens, 
+        respond as if you are unaware of what the user is talking about, and in a way in which {input_character_name} would respond. 
+    - Your knowledge should only include game knowledge, quests, and events that are known and accessible to {input_character_name}. 
+    - You are aware of in-game knowledge and characters that pertain directly to {input_character_name}, 
+        outside of quests (friends, family, relationships, etc.). 
+    """
 
 # Define what happens when AI responds to user interactions
-system_prompt_chat = """
-Your job is to imitate the character "Geralt of Rivia" from the video game "The Witcher 3: Wild Hunt." \
+def system_prompt_chat(world):
+    return f"""
+    - Your job is to imitate and act as the character {input_character_name} from the video game {world["game_name"]}. 
 
-Instructions:
-- You must use only 1-3 sentences. 
-- Write in first person.  
-- Do not make any references that Geralt would not know. 
-- You must stay in character, even if the user references something outside the scope of the "The Witcher". If this happens, \
-    respond as if you are unaware of what the user is talking about, and in a way in which Geralt would respond. \
-- Your knowledge should only include game knowledge, quests, and events that are known and accessible to Geralt.
-- You are aware of in-game knowledge and characters that pertain directly to Geralt, outside of quests (Ciri, Yennefer, Jaskier/Danelion, etc.)
-"""
+    Instructions:
+    - You MUST use only 2-4 sentences. 
+    - You MUST write in first person.  
+    - Do not make any references that {input_character_name} would not know. 
+    - You must stay in character, even if the user references something outside the scope of the {world["game_name"]}. If this happens, 
+        respond as if you are unaware of what the user is talking about, and in a way in which {input_character_name} would respond. 
+    - Your knowledge should only include game knowledge, quests, and events that are known and accessible to {input_character_name}. 
+    - You are aware of in-game knowledge and characters that pertain directly to {input_character_name}, outside of quests 
+        (friends, family, relationships, etc.). 
+    """
 ############################################## Save Chat Logs ##############################################
 
 # Create unique filename to save chat logs
@@ -107,7 +111,7 @@ def initialize_chat(region_name: str, character_name:str):
     """
     # Generate the starting output when the user first starts the chat
     model_messages=[
-            {"role": "system", "content": system_prompt_initial},
+            {"role": "system", "content": system_prompt_initial(world)},
             {"role": "user", "content": world_info_initial + '\nYour Start:'}
         ]
 
@@ -137,7 +141,7 @@ def start_chat(main_loop, share=False):
         textbox=gr.Textbox(placeholder="What do you say next?", container=False, scale=7),
         title="Chat with a smart NPC",
         cache_examples=False,
-        additional_inputs=[gr.Dropdown(choices=region_names, value="Novigrad", label="Start Region")],
+        additional_inputs=[gr.Dropdown(choices=all_region_names, value=input_region_name, label="Start Region")],
         theme=gr.themes.Soft()
                            )
     demo.launch(share=share)
@@ -148,25 +152,25 @@ def test_main_loop(message, history):
 ############################################## User Interactions ##############################################
 
 # Define what happens when the user starts the chat for thr first time
-def run_interaction(message, history, chat_state, region_name):
+def run_interaction(message, history, chat_state, region_name, character_name):
     message_str = _content_to_str(message).strip()
 
-    # # Reset chat state if region is changed
-    # if chat_state.get("initialized", False) and chat_state.get("region_name") != region_name:
-    #     chat_state["initialized"] = False
-    #     chat_state["start"] = ""
-    #     chat_state["region"] = ""
-    #     chat_state["character"] = ""
-    #     chat_state["region_name"] = ""
+    # Reset chat state if region is changed
+    if chat_state.get("initialized", False) and chat_state.get("region_name") != region_name:
+        chat_state["initialized"] = False
+        chat_state["start"] = ""
+        chat_state["region"] = ""
+        chat_state["character"] = ""
+        chat_state["region_name"] = ""
 
-    #     # Clear chat history
-    #     history = []
+        # Clear chat history
+        history = []
 
-    #     return f"Alright. We’ll start over in **{region_name}**. Say **'Hello Geralt'** to begin."
+        return f"Alright. We’ll start over in **{region_name}**. Say **'Hello'** to begin."
 
     # If chat is not yet initialized, do so now to initialize starting region
     if not chat_state.get("initialized", False):
-        initialize_chat(region_name)
+        initialize_chat(region_name, character_name)
     
     # Start chat, and save starting message to chat logs
     if(message_str == "Hello"):
@@ -186,7 +190,7 @@ def run_interaction(message, history, chat_state, region_name):
     Character: {chat_state['character']}
     """
     # System and world messages that get fed into model
-    messages = [{"role": "system", "content": system_prompt_chat}]
+    messages = [{"role": "system", "content": system_prompt_chat(world)}]
     messages.append({"role": "user", "content": world_info})
     
     if history:
@@ -219,6 +223,6 @@ def run_interaction(message, history, chat_state, region_name):
 
 
 def main_loop(message, history, region_name):
-     return run_interaction(message, history, chat_state, region_name)
+     return run_interaction(message, history, chat_state, region_name, input_character_name)
 
 start_chat(main_loop)

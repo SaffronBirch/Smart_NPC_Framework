@@ -43,20 +43,6 @@ def create_system_prompt():
 
 ################################################### Prompts for Script Generation #########################################
 
-# Get the name of the video game from the game script
-# def get_game_name_from_script(game_data):
-
-#     return f"""
-#     - Identify the name of the video game from {game_data}.
-    
-#     Return ONLY valid JSON.
-
-#         Schema:
-#         {{
-#         "game_name": "World Name", 
-#         }}
-#     """
-
 #Create the World Prompt
 def create_world_from_script(game_data):
     return f"""
@@ -405,23 +391,6 @@ class ScriptDataGenerator(Generator):
     def __init__(self, data_filename=None):
        super().__init__()
        self.game_data = load_script_data(data_filename)
-   
-    # def get_game_name(self):
-    #     print(f"retrievingthe name of the video game...")
-
-    #     game_name_messages = [
-    #             {"role": "system", "content": create_system_prompt()},
-    #             {"role": "user", "content": get_game_name_from_script(self.game_data)}]
-                
-    #     game_name_output = API_helper(game_name_messages)
-    #     game_name_data = json.loads(game_name_output)
-
-    #     self.world = {
-    #         "game_name": game_name_data["game_name"].strip()
-    #     }
-
-    #     print(f"Retrieved name: {self.world['game_name']}")
-    #     return self.world
 
     def generate_world(self):
        print(f"generating world...")
